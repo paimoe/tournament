@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html ng-app>
+    <!--
+    
+    - update urls into some encoded format to be able to share, like fakething.php?f=1481927659182650970,Canada,Poop,Ass
+    
+    
+    
+    angular can somehow bind the data, so i only need to pass around references to them
+    
+    
+    
+    
+    -->
+    <head>
+        <title>Tournament thing</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <!--<script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.0.4/angular.min.js"></script>-->
+    
+        <link rel="stylesheet" href="http://code.jquery.com/ui/1.10.0/themes/base/jquery-ui.css" />
+        <script src="http://code.jquery.com/jquery-1.8.3.js"></script>
+        <script src="http://code.jquery.com/ui/1.10.0/jquery-ui.js"></script>
+        <script src="jsidfk.js"></script>
+        <script src="underscore.js"></script>
+        <link rel="stylesheet" href="/resources/demos/style.css" />
+        <style>
+        .sortable { list-style-type: none; margin: 0; padding: 0; width: 60%; }
+        .sortable li { margin: 0 5px 5px 5px; padding: 5px; font-size: 1.2em; height: 1.5em; }
+        html>body .sortable li { height: 1.5em; line-height: 1.2em; }
+        .ui-state-highlight { height: 1.5em; line-height: 1.2em; }
+        .QF1, .QF2, .QF3, .QF4, .SF1, .SF2 { border: 1px solid red; }
+        .pool li:nth-child(2) { border-bottom: 1px solid red; }
+        .winner-QF { border-color: blue; }
+        
+        div.box {
+            border: 5px solid #555;
+            position: relative;
+            padding-bottom: 50px; /* for h2 */
+            background: #eee;
+            width: 1000px;
+            margin: 40px auto 0 auto;
+        }
+        div.box h2 {
+            font-family: sans-serif;
+            text-transform: uppercase;
+            color: #555;
+            font-size: 300%;
+            margin: 0;
+            position: absolute;
+            bottom: 0;
+            left: 50px;
+            line-height: 0.7;
+        }
+        div.box table {
+        }
+        </style>
+        <script>
+            
+            // Pulse an element to bring attention to it
+            jQuery.prototype.glow = function() {
+                $ele = $(this);
+            }
+            
+            var Seeds = {};
+            
+            function updateSF() {
+                ids = {
+                    1: '#SF1_1',
+                    2: '#SF1_2',
+                    3: '#SF2_1',
+                    4: '#SF2_2'
+                }; // QF1 vs QF2, 3vs4
+                _.each([1,2,3,4], function(element, index, list) {  
+                    W = $('.winner-QF' + element);
+                    if (W.length > 0) { // Will be zero if we havne't chosen a winner of a QF
+                        
+                        txt = W.text();
+                        
+                        // Check if opponent has been picked yet
+                        
+                        $( ids[element] ).text( txt );
+                    }                    
+                });
+            }
+            
+            function setQFWinner(evt, winner) {
+                $winner = $(winner);
+                $winner.fadeTo(0, 1); //  full colour
+                
+                opp = $winner.data('opp'); // oppposition QF element
+                $opp = $('#' + opp);
+                $opp.fadeTo('fast', 0.5);
+                $opp.css('border-color', 'red');   
+                
+                cls = $winner.attr('class');
+                
+                $winner.addClass('winner-QF');
+                $opp.removeClass('winner-' + cls);
+                
+                updateSF();
+            }
+            
+            function unsetQFWinner(QFID) {
+                // Reset to unchosen
+                QF = $(QFID);
+                
+                QF.fadeTo(0, 1);
+                QF.removeClass('winner-QF');
+                
+                
+                // Reset related SF
+            }
+            
+            function updateQF(evt, data) {
+                pool = data['pool'];
+                
+                // Loop teams and filter everything into the appropriate place
+                _.each([pool], function(element, index, list) {
+                    $pool = $('#Pool' + element);
+                    children = $pool.children();
+                    Seeds['Win' + element] = children[0];
+                    Seeds['Run' + element] = children[1];
+                });
+                
+                _.each(Seeds, function(value, key, list) {
+                    $team = $(value);
+                    cls = key.substr(0, 3);
+                    pool = key[3];
+                    if (cls == 'Win') {
+                        // Winner of 
+                        cls = '#QFWinner' + pool;
+                    } else {
+                        cls = '#QFRunner' + pool;
+                    }
+                    
+                    // If old choice exists, then disable the QF winner choice
+                    oldtext = $(cls).data('old');
+                    if (oldtext != undefined) {
+                        unsetQFWinner(cls);
+                    }
+                    
+                    // Store previous version in case we need to update Semis
+                    $(cls).data('old', $(cls).text());
+                    
+                    $(cls).text($team.text());
+                    $(cls).glow();
+                });
+            }
+            
+            $(function() {
+                
+                Eventy.listen('sortedPool', updateQF);
+                Eventy.listen('choseQF', setQFWinner);
+                
+                $('td[class^="QF"]').live('click', function(evt) { 
+                    Eventy.call('choseQF', this);
+                });
+                
+                $( ".sortable" ).sortable({
+                    placeholder: "ui-state-highlight",
+                    axis: "y",
+                    stop: function(e, ui) {
+                        pos = ui.item.index();
+                        
+                        pool = $(this).data('pool');
+                        
+                        Eventy.call('sortedPool', {'pool': pool});
+                        updateSF(); // unset quarterfinals winner for QFs for this pool
+                    },
+                });
+                $( ".sortable" ).disableSelection();                
+            });
+            
+            var Eventy = {
+                // Add a callback for when an event fires
+                listen: function(event, fn) {
+                    $(this).bind(event, fn);
+                },
+                // Trigger all callbacks of a certain event
+                call: function(event, o) {
+                    $(this).trigger(event, o);
+                }
+            }
+        </script>
+    </head>
+    <body>
+            <h2>final</h2>
+            
+        <div class="box">
+            <h2>semis</h2>
+            <table border="1" width="100%">
+                <tr>
+                    <td>
+                    <h3>SF1 + SF2</h3>
+                    
+                    <table>
+                        <tr>
+                            <td class="SF1" id="SF1_1">Winner QF1</td>
+                            <td class="SF1" id="SF1_2">Winner QF2</td>
+                        </tr>
+                        <tr>
+                            <td class="SF2" id="SF2_1">Winner QF3</td>
+                            <td class="SF2" id="SF2_2">Winner QF4</td>
+                        </tr>
+                    </table>
+                    
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <div class="box">
+        <h2>quarters</h2>
+        <!-- 
+        QF 1 - Winner pool B v Runner up pool A
+QF 2 - Winner pool C v Runner up pool D
+QF 3 - Winner pool A v Runner up pool B
+QF 4 - Winner pool D v Runner up pool C
+-->
+        <table border="1" width="100%">
+            <tr>
+                <td>
+                <h3>QF1 + QF2</h3>
+                
+                <table>
+                    <tr>
+                        <td class="QF1" id="QFWinnerB" data-opp="QFRunnerA" data-QF="1">Winner Pool B</td>
+                        <td class="QF1" id="QFRunnerA" data-opp="QFWinnerB" data-QF="1">Runner Up Pool A</td>
+                        <td>click which team you think will win (tooltip)</td>
+                    </tr>
+                    <tr>
+                        <td class="QF2" id="QFWinnerC" data-opp="QFRunnerD" data-QF="2">Winner Pool C</td>
+                        <td class="QF2" id="QFRunnerD" data-opp="QFWinnerC" data-QF="2">Runner Up Pool D</td>
+                        <td>click which team you think will win (tooltip)</td>
+                    </tr>
+                </table>
+                
+                </td>
+                <td>
+                <h3>QF3 + QF4</h3>
+                
+                <table>
+                    <tr>
+                        <td class="QF3" id="QFWinnerA" data-opp="QFRunnerB" data-QF="3" title="Click to select Australia as winner">Winner Pool A</td>
+                        <td class="QF3" id="QFRunnerB" data-opp="QFWinnerA" data-QF="3">Runner Up Pool B</td>
+                        <td>click which team you think will win (tooltip)</td>
+                    </tr>
+                    <tr>
+                        <td class="QF4" id="QFWinnerD" data-opp="QFRunnerC" data-QF="4">Winner Pool D</td>
+                        <td class="QF4" id="QFRunnerC" data-opp="QFWinnerD" data-QF="4">Runner Up Pool C</td>
+                        <td>click which team you think will win (tooltip)</td>
+                    </tr>
+                </table>
+                
+                </td>
+            </tr>
+        </table>
+        </div>
+        <div class="box">
+            <h2>pools</h2>
+            <table border="1" width="100%">
+                <tr>
+                    <td>
+                    <h3>pool A</h3>
+                    <ul class="sortable pool" id="PoolA" data-pool="A">
+                      <li class="ui-state-default">Australia</li>
+                      <li class="ui-state-default">England</li>
+                      <li class="ui-state-default">Wales</li>
+                      <li class="ui-state-default">Oceania1</li>
+                      <li class="ui-state-default">PlayOffWinner</li>
+                    </ul>
+                    
+                    </td>
+                    <td>
+                    <h3>pool B</h3>
+                    <ul class="sortable pool" id="PoolB" data-pool="B">
+                      <li class="ui-state-default">South Africa</li>
+                      <li class="ui-state-default">Samoa</li>
+                      <li class="ui-state-default">Scotland</li>
+                      <li class="ui-state-default">Asia1</li>
+                      <li class="ui-state-default">Americas2</li>
+                    </ul>
+                    
+                    </td>
+                    <td>
+                    <h3>pool C</h3>
+                    <ul class="sortable pool" id="PoolC" data-pool="C">
+                      <li class="ui-state-default">New Zealand</li>
+                      <li class="ui-state-default">Argentina</li>
+                      <li class="ui-state-default">Tonga</li>
+                      <li class="ui-state-default">Europe1</li>
+                      <li class="ui-state-default">Africa1</li>
+                    </ul>
+                    </td>
+                    <td>
+                    <h3>pool D</h3>
+                    <ul class="sortable pool" id="PoolD" data-pool="D">
+                      <li class="ui-state-default">France</li>
+                      <li class="ui-state-default">Ireland</li>
+                      <li class="ui-state-default">Italy</li>
+                      <li class="ui-state-default">Americas1 </li>
+                      <li class="ui-state-default">Europe2</li>
+                    </ul>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <h2>bonus teams</h2>
+    <div>
+      <label>Name:</label>
+      <input type="text" ng-model="Americas1" placeholder="Enter a name here" value="ass"><br />
+      <hr>
+    </div>
+    </body>
+</html>
